@@ -83,7 +83,7 @@ fn main() {
 
     // println!("length: {}", "jIreCfXUS16Mh1s%2BmUuz1ndex8NSLnK6ozE3TLk71c9eMT3TsVQGU2nKcUbmMXRAOEHYKjKAe4lASsqaGncbDwk1QDhSCg8F1S0S%2BZAF3XiTA3sLQrLKt%2B7Kc0XW31eaVBml9Z%2B81pUaKFP%2BIRn%2B2rmmRnxBU%2BXxW%2BkL1Kd6cPM3U0Exhobjqp81jyakNZYF".chars().count());
     let message = "abcdefg";
-    let message = r#"{"ids": [413961906], "br": 32000}."#;
+    let message = r#"{"ids": [], "br": 32000}."#;
 
     let mut key: [u8; 32] = [0; 32];
     let mut iv: [u8; 16] = [0; 16];
