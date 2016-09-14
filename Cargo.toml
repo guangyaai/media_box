@@ -1,0 +1,16 @@
+[package]
+name = "media_box"
+version = "0.1.0"
+authors = ["passchaos <greedwolf.dss@gmail.com>"]
+
+[dependencies]
+getopts = "0.2"
+num = "0.1"
+hyper = "0.9"
+serde = "0.8"
+serde_macros = "0.8"
+serde_json = "0.8"
+ring = "0.4"
+rust-crypto = "0.2"
+rand = "0.3"
+base64 = "0.2"
