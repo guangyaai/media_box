@@ -9,6 +9,7 @@ extern crate num;
 extern crate serde;
 extern crate serde_json;
 extern crate hyper;
+extern crate url;
 
 #[macro_use]
 extern crate mime;
@@ -18,6 +19,7 @@ mod music;
 use music::netease::{self, NetEaseMusicInfo};
 
 fn main() {
-    let music_info = NetEaseMusicInfo::get_music_info(22817125);
-    println!("music: {:?}", music_info);
+    let music_infos = NetEaseMusicInfo::get_music_info(22817125);
+    let music_info = music_infos.first().unwrap();
+    println!("music: {:?}", music_info.music_url());
 }

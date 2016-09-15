@@ -1,4 +1,3 @@
-
 // 网易云音乐相关
 use num::bigint::{BigInt, BigUint, ToBigInt};
 use num::pow::pow;
@@ -8,18 +7,20 @@ use std::str::Chars;
 use std::iter::repeat;
 use std::io::{self, Read};
 
+use std::time::{Duration, SystemTime};
+
 use crypto::{symmetriccipher, buffer, aes, blockmodes};
 use crypto::buffer::{ReadBuffer, WriteBuffer, BufferResult};
 use rand::{OsRng, Rng};
-use ring::aead;
 
-use serde_json;
+use serde_json::{self, Value};
 
 use base64;
 
 use hyper::Client;
-use hyper::header::Headers;
 use hyper::header::ContentType;
+
+use url::form_urlencoded;
 
 const MODULUS: &'static str = "00e0b509f6259df8642dbc35662901477df22677ec152b5ff68ace615bb7b725152b3ab17a876aea8a5aa76d2e417629ec4ee341f56135fccf695280104e0312ecbda92557c93870114af6c9d05c4f7f0c3685b7a46bee255932575cce10b424d813cfe4875d3e82047b97ddef52741d546b8e289dc6935b3ece0462db0a22b8e7";
 const NONCE: &'static str = "0CoJUm6Qyw8W8jud";
@@ -29,6 +30,7 @@ const IV: &'static str = "0102030405060708";
 const REQUEST_STR: &'static str = "http://music.163.com/weapi/song/enhance/player/url?csrf_token=";
 
 #[derive(Debug, Deserialize)]
+#[serde(rename = "data")]
 pub struct NetEaseMusicInfo {
     id: u64,
     url: Option<String>,
@@ -37,8 +39,13 @@ pub struct NetEaseMusicInfo {
     // music_type: super::MusicType,
 }
 
+#[derive(Debug, Deserialize)]
+struct TempData {
+    data: Vec<NetEaseMusicInfo>,
+}
+
 impl NetEaseMusicInfo {
-    pub fn get_music_info(music_id: u64) -> NetEaseMusicInfo {
+    pub fn get_music_info(music_id: u64) -> Vec<NetEaseMusicInfo> {
         let message = format!("{{\"ids\": [{}], \"br\": 32000}}", music_id);
 
         let mut rng = OsRng::new().expect("Failed to get OS random generator");
@@ -52,24 +59,31 @@ impl NetEaseMusicInfo {
         let encrypted_data = aes_encrypt(params.as_bytes(), random_key.as_bytes()).unwrap();
         let params = base64::encode(&encrypted_data);
 
+        let begin = SystemTime::now();
         let sec_key = rsa_encrypt(random_key);
+        // println!("interval: {:?}", SystemTime::now().duration_since(begin).unwrap());
 
         let client = Client::new();
-        let body = format!("params={}&encSecKey={}", params, sec_key);
-        println!("body: {}", body);
+        
+        let encoded: String = form_urlencoded::Serializer::new(String::new())
+            .append_pair("params", params.as_str())
+            .append_pair("encSecKey", sec_key.as_str())
+            .finish();
 
-        println!("message: {}", message);
         // let mut headers = Headers::new();
         // headers.set_raw("content-type", vec![b"x-www-form-urlencoded".to_vec()]);
-        let mut res = client.post(REQUEST_STR).header(ContentType(mime!(Application/WwwFormUrlEncoded))).body(body.as_str()).send().expect("post failed");
+        let mut res = client.post(REQUEST_STR).header(ContentType(mime!(Application/WwwFormUrlEncoded))).body(encoded.as_str()).send().expect("post failed");
 
         let mut json = String::new();
         res.read_to_string(&mut json);
 
-        println!("response: {:?} json result: {}", res, json);
+        // println!("response: {:?} json result: {}", res, json);
 
-        let music_info = serde_json::from_str(json.as_str()).unwrap();
-        music_info
+        let tmp_data: TempData = serde_json::from_str(json.as_str()).unwrap();
+        tmp_data.data
+    }
+    pub fn music_url(&self) -> &Option<String> {
+        &self.url
     }
 }
 
