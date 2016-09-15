@@ -1,29 +1,107 @@
-// 网易云音乐相关
 
+// 网易云音乐相关
+use num::bigint::{BigInt, BigUint, ToBigInt};
+use num::pow::pow;
+
+use std::str;
+use std::str::Chars;
+use std::iter::repeat;
+use std::io::{self, Read};
+
+use crypto::{symmetriccipher, buffer, aes, blockmodes};
+use crypto::buffer::{ReadBuffer, WriteBuffer, BufferResult};
+use rand::{OsRng, Rng};
+use ring::aead;
+
+use serde_json;
+
+use base64;
+
+use hyper::Client;
+use hyper::header::Headers;
+use hyper::header::ContentType;
 
 const MODULUS: &'static str = "00e0b509f6259df8642dbc35662901477df22677ec152b5ff68ace615bb7b725152b3ab17a876aea8a5aa76d2e417629ec4ee341f56135fccf695280104e0312ecbda92557c93870114af6c9d05c4f7f0c3685b7a46bee255932575cce10b424d813cfe4875d3e82047b97ddef52741d546b8e289dc6935b3ece0462db0a22b8e7";
 const NONCE: &'static str = "0CoJUm6Qyw8W8jud";
 const PUB_KEY: &'static str = "010001";
+const IV: &'static str = "0102030405060708";
 
-fn aes_encrypt(text: &str, sec_key: &str) -> String {
-    let pad = 16 - text.chars().count();
+const REQUEST_STR: &'static str = "http://music.163.com/weapi/song/enhance/player/url?csrf_token=";
 
-    let mut new_text = text.to_string();
+#[derive(Debug, Deserialize)]
+pub struct NetEaseMusicInfo {
+    id: u64,
+    url: Option<String>,
+    br: u32,
+    md5: Option<String>,
+    // music_type: super::MusicType,
+}
 
-    let tail = format!("{}", pad);
+impl NetEaseMusicInfo {
+    pub fn get_music_info(music_id: u64) -> NetEaseMusicInfo {
+        let message = format!("{{\"ids\": [{}], \"br\": 32000}}", music_id);
 
-    for _ in 0..pad {
-        new_text += tail.as_str();
+        let mut rng = OsRng::new().expect("Failed to get OS random generator");
+
+        let encrypted_data = aes_encrypt(message.as_bytes(), NONCE.as_bytes()).expect("aes failed");
+
+        let params = base64::encode(&encrypted_data);
+
+        let random_key = "cc09f2ec1dc8ded1";
+        
+        let encrypted_data = aes_encrypt(params.as_bytes(), random_key.as_bytes()).unwrap();
+        let params = base64::encode(&encrypted_data);
+
+        let sec_key = rsa_encrypt(random_key);
+
+        let client = Client::new();
+        let body = format!("params={}&encSecKey={}", params, sec_key);
+        println!("body: {}", body);
+
+        println!("message: {}", message);
+        // let mut headers = Headers::new();
+        // headers.set_raw("content-type", vec![b"x-www-form-urlencoded".to_vec()]);
+        let mut res = client.post(REQUEST_STR).header(ContentType(mime!(Application/WwwFormUrlEncoded))).body(body.as_str()).send().expect("post failed");
+
+        let mut json = String::new();
+        res.read_to_string(&mut json);
+
+        println!("response: {:?} json result: {}", res, json);
+
+        let music_info = serde_json::from_str(json.as_str()).unwrap();
+        music_info
     }
+}
+
+fn rsa_encrypt(text: &str) -> String {
+    let text = text.chars().rev().map(|c| format!("{:x}", c as u8)).collect::<String>();
+
+    let n1 = BigInt::parse_bytes(text.as_bytes(), 16).unwrap();
+    let n2 = usize::from_str_radix(PUB_KEY, 16).unwrap();
+    let n3 = BigInt::parse_bytes(MODULUS.as_bytes(), 16).unwrap();
     
-    new_text
+    let n = pow(n1, n2) % n3;
+
+    format!("{:0256x}", n)
 }
 
-fn rsa_encrypt(text: &str, pub_key: &str, modulus: &str) -> String {
-    let text: String = text.chars().rev().collect();
-    text
-}
+fn aes_encrypt(data: &[u8], key: &[u8]) -> Result<Vec<u8>, symmetriccipher::SymmetricCipherError> {
+    let mut encryptor = aes::cbc_encryptor(aes::KeySize::KeySize128, key, IV.as_bytes(), blockmodes::PkcsPadding);
 
-pub fn music_url(name: &str) -> String {
-    rsa_encrypt(name, PUB_KEY, MODULUS)
+    let mut final_result: Vec<u8> = vec![];
+    let mut read_buffer = buffer::RefReadBuffer::new(data);
+    let mut buffer = [0; 2048];
+    let mut write_buffer = buffer::RefWriteBuffer::new(&mut buffer);
+
+    loop {
+        let result = try!(encryptor.encrypt(&mut read_buffer, &mut write_buffer, true));
+        final_result.extend(write_buffer.take_read_buffer().take_remaining().iter().map(|&i| i));
+
+        match result {
+            BufferResult::BufferUnderflow => break,
+            BufferResult::BufferOverflow => {}
+        }
+    }
+
+    Ok(final_result)
 }
