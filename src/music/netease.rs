@@ -6,6 +6,8 @@ use std::str;
 use std::iter::repeat;
 use std::io::Read;
 
+use std::error::Error;
+
 // use std::time::{Duration, SystemTime};
 
 use crypto::{symmetriccipher, buffer, aes, blockmodes};
@@ -41,10 +43,10 @@ pub struct NetEaseMusicInfo {
 
 
 impl NetEaseMusicInfo {
-    pub fn get_music_info(music_id: u64) -> Vec<NetEaseMusicInfo> {
+    pub fn get_music_info(music_id: u64) -> Result<Vec<NetEaseMusicInfo>, Box<Error>> {
         let message = format!("{{\"ids\": [{}], \"br\": 32000}}", music_id);
 
-        let encrypted_data = aes_encrypt(message.as_bytes(), NONCE.as_bytes()).expect("aes failed");
+        let encrypted_data = aes_encrypt(message.as_bytes(), NONCE.as_bytes()).unwrap();
 
         let params = base64::encode(&encrypted_data);
 
@@ -55,12 +57,12 @@ impl NetEaseMusicInfo {
         let params = base64::encode(&encrypted_data);
 
         // let begin = SystemTime::now();
-        println!("random key: {:?}", random_key);
-        let sec_key = rsa_encrypt(&random_key);
+        // println!("random key: {:?}", random_key);
+        let sec_key = try!(rsa_encrypt(&random_key));
         // println!("interval: {:?}", SystemTime::now().duration_since(begin).unwrap());
 
         let client = Client::new();
-        println!("params: {} encSeckey: {}", params, sec_key);
+        debug!("params: {}\nencSeckey: {}", params, sec_key);
         
         let encoded: String = form_urlencoded::Serializer::new(String::new())
             .append_pair("params", params.as_str())
@@ -69,8 +71,8 @@ impl NetEaseMusicInfo {
 
         // let mut headers = Headers::new();
         // headers.set_raw("content-type", vec![b"x-www-form-urlencoded".to_vec()]);
-        println!("encoded: {}", encoded);
-        let mut res = client.post(REQUEST_STR).header(ContentType(mime!(Application/WwwFormUrlEncoded))).body(encoded.as_str()).send().expect("post failed");
+        // println!("encoded: {}", encoded);
+        let mut res = try!(client.post(REQUEST_STR).header(ContentType(mime!(Application/WwwFormUrlEncoded))).body(encoded.as_str()).send());
 
         let mut json = String::new();
         res.read_to_string(&mut json);
@@ -81,11 +83,11 @@ impl NetEaseMusicInfo {
             data: Vec<NetEaseMusicInfo>,
         }
 
-        let tmp_data: TempData = serde_json::from_str(json.as_str()).expect("json 解析失败");
-        tmp_data.data
+        let tmp_data: TempData = try!(serde_json::from_str(json.as_str()));
+        Ok(tmp_data.data)
     }
-    pub fn music_url(&self) -> &Option<String> {
-        &self.url
+    pub fn music_url(&self) -> Option<String> {
+        self.url.clone()
     }
 }
 
@@ -96,37 +98,29 @@ fn create_random_key(size: usize) -> Vec<u8> {
     rng.fill_bytes(&mut random_key);
     let random_char = random_key
         .iter()
-        .map(|n| format!("{:x}", n))
-        .collect::<String>()
-        .as_bytes()
-        .iter()
+        .flat_map(|n| format!("{:x}", n).into_bytes())
         .take(size)
-        .map(|&n| n)
         .collect::<Vec<u8>>();
-    println!("random char: {:?}", random_char);
+
     random_char
 }
 
-fn rsa_encrypt(text: &[u8]) -> String {
+fn rsa_encrypt(text: &[u8]) -> Result<String, Box<Error>> {
     let inner_text = text
         .iter()
         .rev()
         .map(|&n| format!("{:x}", n))
         .collect::<String>();
     let inner = inner_text.as_bytes();
-    
-    println!("text: {} inner_text: {}", str::from_utf8(text).unwrap(), str::from_utf8(&inner).unwrap());
 
-    let n1 = BigInt::parse_bytes(&inner, 16).expect("输入的文本解析失败");
+    let n1 = try!(BigInt::parse_bytes(&inner, 16).ok_or("n1 解析失败"));
 
-    let n2 = usize::from_str_radix(PUB_KEY, 16).expect("PUB_KEY 解析错误");
-    let n3 = BigInt::parse_bytes(MODULUS.as_bytes(), 16).expect("MODULUE 解析失败");
+    let n2 = try!(usize::from_str_radix(PUB_KEY, 16));
+    let n3 = try!(BigInt::parse_bytes(MODULUS.as_bytes(), 16).ok_or("n3 解析失败"));
     
     let n = pow(n1, n2) % n3;
 
-    println!("result: {:0256x}", n);
-
-    format!("{:0256x}", n)
+    Ok(format!("{:0256x}", n))
 }
 
 fn aes_encrypt(data: &[u8], key: &[u8]) -> Result<Vec<u8>, symmetriccipher::SymmetricCipherError> {
