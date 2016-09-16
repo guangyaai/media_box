@@ -75,7 +75,7 @@ impl NetEaseMusicInfo {
         let mut res = try!(client.post(REQUEST_STR).header(ContentType(mime!(Application/WwwFormUrlEncoded))).body(encoded.as_str()).send());
 
         let mut json = String::new();
-        res.read_to_string(&mut json);
+        try!(res.read_to_string(&mut json));
 
         // println!("response: {:?} json result: {}", res, json);
         #[derive(Debug, Deserialize)]
