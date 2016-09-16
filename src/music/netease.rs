@@ -1,19 +1,18 @@
 // 网易云音乐相关
-use num::bigint::{BigInt, BigUint, ToBigInt};
+use num::bigint::BigInt;
 use num::pow::pow;
 
 use std::str;
-use std::str::Chars;
 use std::iter::repeat;
-use std::io::{self, Read};
+use std::io::Read;
 
-use std::time::{Duration, SystemTime};
+// use std::time::{Duration, SystemTime};
 
 use crypto::{symmetriccipher, buffer, aes, blockmodes};
 use crypto::buffer::{ReadBuffer, WriteBuffer, BufferResult};
 use rand::{OsRng, Rng};
 
-use serde_json::{self, Value};
+use serde_json;
 
 use base64;
 
@@ -39,31 +38,29 @@ pub struct NetEaseMusicInfo {
     // music_type: super::MusicType,
 }
 
-#[derive(Debug, Deserialize)]
-struct TempData {
-    data: Vec<NetEaseMusicInfo>,
-}
+
 
 impl NetEaseMusicInfo {
     pub fn get_music_info(music_id: u64) -> Vec<NetEaseMusicInfo> {
         let message = format!("{{\"ids\": [{}], \"br\": 32000}}", music_id);
 
-        let mut rng = OsRng::new().expect("Failed to get OS random generator");
-
         let encrypted_data = aes_encrypt(message.as_bytes(), NONCE.as_bytes()).expect("aes failed");
 
         let params = base64::encode(&encrypted_data);
 
-        let random_key = "cc09f2ec1dc8ded1";
+        // let random_key = "cc09f2ec1dc8ded1".as_bytes();
+        let random_key = create_random_key(16);
         
-        let encrypted_data = aes_encrypt(params.as_bytes(), random_key.as_bytes()).unwrap();
+        let encrypted_data = aes_encrypt(params.as_bytes(), &random_key).unwrap();
         let params = base64::encode(&encrypted_data);
 
-        let begin = SystemTime::now();
-        let sec_key = rsa_encrypt(random_key);
+        // let begin = SystemTime::now();
+        println!("random key: {:?}", random_key);
+        let sec_key = rsa_encrypt(&random_key);
         // println!("interval: {:?}", SystemTime::now().duration_since(begin).unwrap());
 
         let client = Client::new();
+        println!("params: {} encSeckey: {}", params, sec_key);
         
         let encoded: String = form_urlencoded::Serializer::new(String::new())
             .append_pair("params", params.as_str())
@@ -72,14 +69,19 @@ impl NetEaseMusicInfo {
 
         // let mut headers = Headers::new();
         // headers.set_raw("content-type", vec![b"x-www-form-urlencoded".to_vec()]);
+        println!("encoded: {}", encoded);
         let mut res = client.post(REQUEST_STR).header(ContentType(mime!(Application/WwwFormUrlEncoded))).body(encoded.as_str()).send().expect("post failed");
 
         let mut json = String::new();
         res.read_to_string(&mut json);
 
         // println!("response: {:?} json result: {}", res, json);
+        #[derive(Debug, Deserialize)]
+        struct TempData {
+            data: Vec<NetEaseMusicInfo>,
+        }
 
-        let tmp_data: TempData = serde_json::from_str(json.as_str()).unwrap();
+        let tmp_data: TempData = serde_json::from_str(json.as_str()).expect("json 解析失败");
         tmp_data.data
     }
     pub fn music_url(&self) -> &Option<String> {
@@ -87,14 +89,42 @@ impl NetEaseMusicInfo {
     }
 }
 
-fn rsa_encrypt(text: &str) -> String {
-    let text = text.chars().rev().map(|c| format!("{:x}", c as u8)).collect::<String>();
+fn create_random_key(size: usize) -> Vec<u8> {
+    let mut rng = OsRng::new().expect("Failed to get OS random generator");
 
-    let n1 = BigInt::parse_bytes(text.as_bytes(), 16).unwrap();
-    let n2 = usize::from_str_radix(PUB_KEY, 16).unwrap();
-    let n3 = BigInt::parse_bytes(MODULUS.as_bytes(), 16).unwrap();
+    let mut random_key: Vec<u8> = repeat(0u8).take(16).collect();
+    rng.fill_bytes(&mut random_key);
+    let random_char = random_key
+        .iter()
+        .map(|n| format!("{:x}", n))
+        .collect::<String>()
+        .as_bytes()
+        .iter()
+        .take(size)
+        .map(|&n| n)
+        .collect::<Vec<u8>>();
+    println!("random char: {:?}", random_char);
+    random_char
+}
+
+fn rsa_encrypt(text: &[u8]) -> String {
+    let inner_text = text
+        .iter()
+        .rev()
+        .map(|&n| format!("{:x}", n))
+        .collect::<String>();
+    let inner = inner_text.as_bytes();
+    
+    println!("text: {} inner_text: {}", str::from_utf8(text).unwrap(), str::from_utf8(&inner).unwrap());
+
+    let n1 = BigInt::parse_bytes(&inner, 16).expect("输入的文本解析失败");
+
+    let n2 = usize::from_str_radix(PUB_KEY, 16).expect("PUB_KEY 解析错误");
+    let n3 = BigInt::parse_bytes(MODULUS.as_bytes(), 16).expect("MODULUE 解析失败");
     
     let n = pow(n1, n2) % n3;
+
+    println!("result: {:0256x}", n);
 
     format!("{:0256x}", n)
 }

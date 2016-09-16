@@ -16,7 +16,7 @@ extern crate mime;
 
 mod music;
 
-use music::netease::{self, NetEaseMusicInfo};
+use music::netease::NetEaseMusicInfo;
 
 fn main() {
     let music_infos = NetEaseMusicInfo::get_music_info(22817125);
