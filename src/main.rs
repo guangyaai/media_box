@@ -21,6 +21,8 @@ extern crate env_logger;
 mod music;
 
 use std::env;
+use std::error::Error;
+
 use music::netease::NetEaseMusicInfo;
 
 fn main() {
@@ -28,29 +30,32 @@ fn main() {
 
     let mut args = env::args();
 
-    let song_id = match args.nth(1) {
+    let song_id_arg = match args.nth(1) {
         Some(id) => id,
         None => {
             println!("请输入需要查询的音乐id！");
             return;
         }
     };
+    let song_ids = song_id_arg.split(',').collect::<Vec<&str>>();
 
-    let music_infos = NetEaseMusicInfo::get_music_info(song_id.as_str());
+    let mut music_infos_collections: Vec<NetEaseMusicInfo> = vec![];
 
-    match music_infos {
-        Ok(real_music_infos) => {
-            let head_music = real_music_infos.first();
-            if let Some(first_music) = head_music {
-                let music_url = first_music.music_url();
-                match music_url {
-                    Some(url) => println!("music url: {}", url),
-                    None => println!("没有音乐版权信息!"),
-                }
-            } else {
-                println!("无法获取音乐信息!")
-            }                
-        },
-        Err(error) => println!("err: {}", error),
+    for id in song_ids {
+        let mut music_infos = match NetEaseMusicInfo::get_music_info(id) {
+            Ok(infos) => infos,
+            Err(err) => {
+                info!("error: {}", err);
+                continue;
+            }
+        };
+
+        let music_info = music_infos.remove(0);
+
+        music_infos_collections.push(music_info);
+    }
+
+    for info in music_infos_collections {
+        println!("id: {}\turl: {}", info.id, info.url.unwrap_or("没有版权信息!".to_string()));
     }
 }

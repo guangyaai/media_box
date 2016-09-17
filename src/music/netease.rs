@@ -33,8 +33,8 @@ const REQUEST_STR: &'static str = "http://music.163.com/weapi/song/enhance/playe
 #[derive(Debug, Deserialize)]
 #[serde(rename = "data")]
 pub struct NetEaseMusicInfo {
-    id: u64,
-    url: Option<String>,
+    pub id: u64,
+    pub url: Option<String>,
     br: u32,
     md5: Option<String>,
     // music_type: super::MusicType,
