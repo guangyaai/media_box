@@ -20,12 +20,23 @@ extern crate env_logger;
 
 mod music;
 
+use std::env;
 use music::netease::NetEaseMusicInfo;
 
 fn main() {
     env_logger::init().unwrap();
-    
-    let music_infos = NetEaseMusicInfo::get_music_info(22817125);
+
+    let mut args = env::args();
+
+    let song_id = match args.nth(1) {
+        Some(id) => id,
+        None => {
+            println!("请输入需要查询的音乐id！");
+            return;
+        }
+    };
+
+    let music_infos = NetEaseMusicInfo::get_music_info(song_id.as_str());
 
     match music_infos {
         Ok(real_music_infos) => {

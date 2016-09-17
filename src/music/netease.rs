@@ -43,7 +43,7 @@ pub struct NetEaseMusicInfo {
 
 
 impl NetEaseMusicInfo {
-    pub fn get_music_info(music_id: u64) -> Result<Vec<NetEaseMusicInfo>, Box<Error>> {
+    pub fn get_music_info(music_id: &str) -> Result<Vec<NetEaseMusicInfo>, Box<Error>> {
         let message = format!("{{\"ids\": [{}], \"br\": 32000}}", music_id);
 
         let encrypted_data = aes_encrypt(message.as_bytes(), NONCE.as_bytes()).unwrap();
