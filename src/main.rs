@@ -1,7 +1,6 @@
 #![feature(custom_derive, plugin)]
 #![plugin(serde_macros)]
 
-extern crate ring;
 extern crate crypto;
 extern crate rand;
 extern crate base64;
@@ -23,6 +22,9 @@ mod music;
 use std::env;
 use std::time::SystemTime;
 
+use std::sync::{Arc, Mutex};
+use std::thread;
+
 use music::netease::NetEaseMusicInfo;
 
 fn main() {
@@ -39,26 +41,39 @@ fn main() {
             return;
         }
     };
-    let song_ids = song_id_arg.split(',').collect::<Vec<&str>>();
+    let song_ids = song_id_arg.split(',').map(|s| s.to_owned()).collect::<Vec<String>>();
 
-    let mut music_infos_collections: Vec<NetEaseMusicInfo> = vec![];
+    let music_infos_collections = Arc::new(Mutex::new(Vec::new()));
+
+    let mut children = vec![];
 
     for id in song_ids {
-        let mut music_infos = match NetEaseMusicInfo::get_music_info(id) {
-            Ok(infos) => infos,
-            Err(err) => {
-                info!("error: {}", err);
-                continue;
-            }
-        };
+        let infos_collections = music_infos_collections.clone();
+        children.push(thread::spawn(move || {
+            let mut music_infos = match NetEaseMusicInfo::get_music_info(format!("{}", id).as_str()) {
+                Ok(infos) => infos,
+                Err(err) => {
+                    info!("error: {}", err);
+                    return;
+                }
+            };
 
-        let music_info = music_infos.remove(0);
+            let music_info = music_infos.remove(0);
+            
+            let mut infos = infos_collections.lock().unwrap();
+            infos.push(music_info);
+        }));
+    }
 
-        music_infos_collections.push(music_info);
+    for child in children {
+        let _ = child.join();
     }
     debug!("duration: {:?}", SystemTime::now().duration_since(begin));
 
-    for info in music_infos_collections {
-        println!("id: {}\turl: {}", info.id, info.url.unwrap_or("没有版权信息!".to_string()));
+    let infos_coll = music_infos_collections.clone();
+    let infos = infos_coll.lock().unwrap();
+
+    for info in infos.iter() {
+        println!("id: {}\turl: {:?}", info.id, info.url.clone().unwrap_or("没有版权信息！".to_string()));
     }
 }
