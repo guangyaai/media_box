@@ -21,12 +21,14 @@ extern crate env_logger;
 mod music;
 
 use std::env;
-use std::error::Error;
+use std::time::SystemTime;
 
 use music::netease::NetEaseMusicInfo;
 
 fn main() {
     env_logger::init().unwrap();
+
+    let begin = SystemTime::now();
 
     let mut args = env::args();
 
@@ -54,6 +56,7 @@ fn main() {
 
         music_infos_collections.push(music_info);
     }
+    debug!("duration: {:?}", SystemTime::now().duration_since(begin));
 
     for info in music_infos_collections {
         println!("id: {}\turl: {}", info.id, info.url.unwrap_or("没有版权信息!".to_string()));
