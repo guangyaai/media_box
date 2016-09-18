@@ -4,7 +4,7 @@
 extern crate crypto;
 extern crate rand;
 extern crate base64;
-extern crate num;
+extern crate num as big_num;
 extern crate serde;
 extern crate serde_json;
 extern crate hyper;
@@ -24,6 +24,9 @@ use std::time::SystemTime;
 
 use std::sync::{Arc, Mutex};
 use std::thread;
+
+use std::io;
+use std::num;
 
 use music::netease::NetEaseMusicInfo;
 
@@ -53,7 +56,7 @@ fn main() {
             let mut music_infos = match NetEaseMusicInfo::get_music_info(format!("{}", id).as_str()) {
                 Ok(infos) => infos,
                 Err(err) => {
-                    info!("error: {}", err);
+                    info!("error: {:?}", err);
                     return;
                 }
             };
@@ -81,5 +84,40 @@ fn main() {
             }            
         },
         Err(_) => debug!("主线程获取锁失败！"),
+    }
+}
+
+#[derive(Debug)]
+pub enum MediaBoxError {
+    Parse(num::ParseIntError),
+    Io(io::Error),
+    Network(hyper::Error),
+    Json(serde_json::Error),
+    BigInt(String),
+}
+
+impl From<num::ParseIntError> for MediaBoxError {
+    fn from(err: num::ParseIntError) -> MediaBoxError {
+        MediaBoxError::Parse(err)
+    }
+}
+impl From<io::Error> for MediaBoxError {
+    fn from(err: io::Error) -> MediaBoxError {
+        MediaBoxError::Io(err)
+    }
+}
+impl From<hyper::Error> for MediaBoxError {
+    fn from(err: hyper::Error) -> MediaBoxError {
+        MediaBoxError::Network(err)
+    }
+}
+impl From<serde_json::Error> for MediaBoxError {
+    fn from(err: serde_json::Error) -> MediaBoxError {
+        MediaBoxError::Json(err)
+    }
+}
+impl From<String> for MediaBoxError {
+    fn from(err: String) -> MediaBoxError {
+        MediaBoxError::BigInt(err)
     }
 }

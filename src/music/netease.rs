@@ -1,6 +1,6 @@
 // 网易云音乐相关
-use num::bigint::BigInt;
-use num::pow::pow;
+use big_num::bigint::BigInt;
+use big_num::pow::pow;
 
 use std::str;
 use std::iter::repeat;
@@ -8,7 +8,7 @@ use std::io::Read;
 
 use std::error::Error;
 
-// use std::time::{Duration, SystemTime};
+use std::time::SystemTime;
 
 use crypto::{symmetriccipher, buffer, aes, blockmodes};
 use crypto::buffer::{ReadBuffer, WriteBuffer, BufferResult};
@@ -22,6 +22,8 @@ use hyper::Client;
 use hyper::header::ContentType;
 
 use url::form_urlencoded;
+
+use MediaBoxError;
 
 const MODULUS: &'static str = "00e0b509f6259df8642dbc35662901477df22677ec152b5ff68ace615bb7b725152b3ab17a876aea8a5aa76d2e417629ec4ee341f56135fccf695280104e0312ecbda92557c93870114af6c9d05c4f7f0c3685b7a46bee255932575cce10b424d813cfe4875d3e82047b97ddef52741d546b8e289dc6935b3ece0462db0a22b8e7";
 const NONCE: &'static str = "0CoJUm6Qyw8W8jud";
@@ -40,10 +42,8 @@ pub struct NetEaseMusicInfo {
     // music_type: super::MusicType,
 }
 
-
-
 impl NetEaseMusicInfo {
-    pub fn get_music_info(music_id: &str) -> Result<Vec<NetEaseMusicInfo>, Box<Error>> {
+    pub fn get_music_info(music_id: &str) -> Result<Vec<NetEaseMusicInfo>, MediaBoxError> {
         let message = format!("{{\"ids\": [{}], \"br\": 32000}}", music_id);
 
         let encrypted_data = aes_encrypt(message.as_bytes(), NONCE.as_bytes()).unwrap();
@@ -56,10 +56,10 @@ impl NetEaseMusicInfo {
         let encrypted_data = aes_encrypt(params.as_bytes(), &random_key).unwrap();
         let params = base64::encode(&encrypted_data);
 
-        // let begin = SystemTime::now();
+        let begin = SystemTime::now();
         // println!("random key: {:?}", random_key);
         let sec_key = try!(rsa_encrypt(&random_key));
-        // println!("interval: {:?}", SystemTime::now().duration_since(begin).unwrap());
+        info!("interval: {:?}", SystemTime::now().duration_since(begin).unwrap());
 
         let client = Client::new();
         debug!("params: {}\nencSeckey: {}", params, sec_key);
@@ -69,15 +69,11 @@ impl NetEaseMusicInfo {
             .append_pair("encSecKey", sec_key.as_str())
             .finish();
 
-        // let mut headers = Headers::new();
-        // headers.set_raw("content-type", vec![b"x-www-form-urlencoded".to_vec()]);
-        // println!("encoded: {}", encoded);
         let mut res = try!(client.post(REQUEST_STR).header(ContentType(mime!(Application/WwwFormUrlEncoded))).body(encoded.as_str()).send());
 
         let mut json = String::new();
         try!(res.read_to_string(&mut json));
 
-        // println!("response: {:?} json result: {}", res, json);
         #[derive(Debug, Deserialize)]
         struct TempData {
             data: Vec<NetEaseMusicInfo>,
@@ -105,7 +101,7 @@ fn create_random_key(size: usize) -> Vec<u8> {
     random_char
 }
 
-fn rsa_encrypt(text: &[u8]) -> Result<String, Box<Error>> {
+fn rsa_encrypt(text: &[u8]) -> Result<String, MediaBoxError> {
     let inner_text = text
         .iter()
         .rev()
@@ -113,10 +109,10 @@ fn rsa_encrypt(text: &[u8]) -> Result<String, Box<Error>> {
         .collect::<String>();
     let inner = inner_text.as_bytes();
 
-    let n1 = try!(BigInt::parse_bytes(&inner, 16).ok_or("n1 解析失败"));
+    let n1 = try!(BigInt::parse_bytes(&inner, 16).ok_or("n1 解析失败".to_string()));
 
     let n2 = try!(usize::from_str_radix(PUB_KEY, 16));
-    let n3 = try!(BigInt::parse_bytes(MODULUS.as_bytes(), 16).ok_or("n3 解析失败"));
+    let n3 = try!(BigInt::parse_bytes(MODULUS.as_bytes(), 16).ok_or("n3 解析失败".to_string()));
     
     let n = pow(n1, n2) % n3;
 
