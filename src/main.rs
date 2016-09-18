@@ -62,7 +62,7 @@ fn main() {
             
             match infos_collections.lock() {
                 Ok(mut infos) => infos.push(music_info),
-                Err(_) => {},
+                Err(_) => debug!("没有获取锁！"),
             };
         }));
     }
@@ -80,6 +80,6 @@ fn main() {
                 println!("id: {}\turl: {:?}", info.id, info.url.clone().unwrap_or("没有版权信息！".to_string()));
             }            
         },
-        Err(_) => {},
+        Err(_) => debug!("主线程获取锁失败！"),
     }
 }
