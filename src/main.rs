@@ -60,8 +60,10 @@ fn main() {
 
             let music_info = music_infos.remove(0);
             
-            let mut infos = infos_collections.lock().unwrap();
-            infos.push(music_info);
+            match infos_collections.lock() {
+                Ok(mut infos) => infos.push(music_info),
+                Err(_) => {},
+            };
         }));
     }
 
@@ -71,9 +73,13 @@ fn main() {
     debug!("duration: {:?}", SystemTime::now().duration_since(begin));
 
     let infos_coll = music_infos_collections.clone();
-    let infos = infos_coll.lock().unwrap();
-
-    for info in infos.iter() {
-        println!("id: {}\turl: {:?}", info.id, info.url.clone().unwrap_or("没有版权信息！".to_string()));
+    let infos_result = infos_coll.lock();
+    match infos_result {
+        Ok(infos) => {
+            for info in infos.iter() {
+                println!("id: {}\turl: {:?}", info.id, info.url.clone().unwrap_or("没有版权信息！".to_string()));
+            }            
+        },
+        Err(_) => {},
     }
 }
