@@ -1,10 +1,12 @@
-#![feature(custom_derive, plugin)]
-#![plugin(serde_macros)]
+#![feature(rustc_macro)]
 
 extern crate crypto;
 extern crate rand;
 extern crate base64;
 extern crate num as big_num;
+
+#[macro_use]
+extern crate serde_derive;
 extern crate serde;
 extern crate serde_json;
 extern crate hyper;
