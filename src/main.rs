@@ -4,6 +4,7 @@ extern crate crypto;
 extern crate rand;
 extern crate base64;
 extern crate num as big_num;
+extern crate ramp;
 
 #[macro_use]
 extern crate serde_derive;
@@ -91,7 +92,8 @@ fn main() {
 
 #[derive(Debug)]
 pub enum MediaBoxError {
-    Parse(num::ParseIntError),
+    ParseNum(num::ParseIntError),
+    ParseRamp(ramp::int::ParseIntError),
     Io(io::Error),
     Network(hyper::Error),
     Json(serde_json::Error),
@@ -100,7 +102,12 @@ pub enum MediaBoxError {
 
 impl From<num::ParseIntError> for MediaBoxError {
     fn from(err: num::ParseIntError) -> MediaBoxError {
-        MediaBoxError::Parse(err)
+        MediaBoxError::ParseNum(err)
+    }
+}
+impl From<ramp::int::ParseIntError> for MediaBoxError {
+    fn from(err: ramp::int::ParseIntError) -> MediaBoxError {
+        MediaBoxError::ParseRamp(err)
     }
 }
 impl From<io::Error> for MediaBoxError {

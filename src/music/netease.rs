@@ -1,4 +1,6 @@
 // 网易云音乐相关
+extern crate ramp;
+
 use big_num::bigint::BigInt;
 use big_num::pow::pow;
 
@@ -50,15 +52,16 @@ impl NetEaseMusicInfo {
 
         let params = base64::encode(&encrypted_data);
 
-        // let random_key = "cc09f2ec1dc8ded1".as_bytes();
-        let random_key = create_random_key(16);
+        let random_key = "cc09f2ec1dc8ded1".as_bytes();
+        // let random_key = create_random_key(16);
         
         let encrypted_data = aes_encrypt(params.as_bytes(), &random_key).unwrap();
         let params = base64::encode(&encrypted_data);
 
         let begin = SystemTime::now();
         // println!("random key: {:?}", random_key);
-        let sec_key = try!(rsa_encrypt(&random_key));
+        // let sec_key = try!(rsa_encrypt(&random_key));
+        let sec_key = "b00ecb5f666b22b0271ca83afa5b30e9483dafcc051d9b7819e1ae2d77f165826c27609c0a26c9c34a3b2495951c2983ca1c67d7bd2e2ff11950d9f2a67f496fbf1c73b89baa5adae68ea5a9d9a58b245c2f289aff501ad315469e709c20c3aa74b7317b92e022f196ec5af344ff5b93b5360125c4b85af86d1c4c94f3aa987b".to_string();
         info!("interval: {:?}", SystemTime::now().duration_since(begin).unwrap());
 
         let client = Client::new();
@@ -109,10 +112,12 @@ fn rsa_encrypt(text: &[u8]) -> Result<String, MediaBoxError> {
         .collect::<String>();
     let inner = inner_text.as_bytes();
 
+    // let n1 = ramp::Int::from_str_radix(&inner_text, 16)?;
     let n1 = try!(BigInt::parse_bytes(&inner, 16).ok_or("n1 解析失败".to_string()));
 
     let n2 = try!(usize::from_str_radix(PUB_KEY, 16));
     let n3 = try!(BigInt::parse_bytes(MODULUS.as_bytes(), 16).ok_or("n3 解析失败".to_string()));
+    // let n3 = ramp::Int::from_str_radix(MODULUS, 16)?;
     
     let n = pow(n1, n2) % n3;
 

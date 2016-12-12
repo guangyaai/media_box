@@ -6,10 +6,10 @@ authors = ["passchaos <greedwolf.dss@gmail.com>"]
 [dependencies]
 getopts = "*"
 num = "*"
+ramp = "*"
 hyper = "*"
 mime = "*"
 serde = "*"
-serde_macros = "*"
 serde_json = "*"
 serde_derive = "*"
 # ring = "*"
